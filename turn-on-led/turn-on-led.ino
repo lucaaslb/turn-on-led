@@ -29,6 +29,11 @@
 //Variaveis globais;
 LiquidCrystal_I2C lcd(0x3F, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);
 byte eventTime;
+int const lcdWidth = 16;
+int const lcdHeight = 2;
+int stringStart, stringStop = 0;
+int scrollCursor = lcdWidth;
+String msg = "APS MICROCONTROLADORES";
 
 void setup() {
   pinMode(LED00, OUTPUT);
@@ -52,37 +57,34 @@ void setup() {
   pinMode(DISPLAY7_G, OUTPUT); //Pino 12 do Arduino ligado ao segmento G
 
   Serial.begin(9600);
-  lcd.begin (16, 2);
+  lcd.begin (lcdWidth, lcdHeight);
   lcd.noAutoscroll();
   lcd.setBacklight(HIGH);
 
-  delay(1000);
-  writeDisplay("Automacao Resid", 0, 0, true);
-  delay(1000);
-  writeDisplay("Proj.TRANQUILO!", 0, 1, false);
+  writeDisplay("Proj.TRANQUILO!", 0, 0, false);
 
-  delay(1500);
+  delay(1700);
 
-  writeDisplay("SEJA BEM", 4, 0, true);
-  writeDisplay("VINDO", 5, 1, false);
+  msgStart();
 
-  delay(1500);
-
-  msgDefault();
   eventTime = 10;
 }
 
 void loop() {
   btnLedOnOff();
 
-  if (Serial.available() > 0) readSerial();
+  if (Serial.available() > 0) {
+    timingEffects();
+  }
 }
+
 
 void beep() {
   tone(BUZZ, 1000);
   delay(200);
   noTone(BUZZ);
 }
+
 
 void tenSeconds(byte digit) {
   byte seven_seg_digits[16][7] = {
@@ -131,14 +133,31 @@ void btnLedOnOff() {
     digitalWrite(LED03, !digitalRead(LED03));
     delay(500);
   }
+
 }
 
-void readSerial() {
+void timingEffects() {
   byte contador;
 
   unsigned char SerialValue = (unsigned char)Serial.read();
 
   switch (SerialValue) {
+    case 'l':
+      digitalWrite(LED00, !digitalRead(LED00));
+      delay(500);
+      break;
+    case 'e':
+      digitalWrite(LED01, !digitalRead(LED01));
+      delay(500);
+      break;
+    case 'd':
+      digitalWrite(LED02, !digitalRead(LED02));
+      delay(500);
+      break;
+    case 's':
+      digitalWrite(LED03, !digitalRead(LED03));
+      delay(500);
+      break;
     case '1':
       turnLedOff();
 
@@ -152,8 +171,8 @@ void readSerial() {
       tenSeconds(contador);
       beep();
       msgDefault();
-      
       break;
+
     case '2':
       turnLedOff();
 
@@ -190,6 +209,7 @@ void readSerial() {
       msgDefault();
 
       break;
+
     case '3':
       turnLedOff();
 
@@ -217,8 +237,8 @@ void readSerial() {
       turnLedOff();
       beep();
       msgDefault();
-      
       break;
+
     case '4':
       turnLedOff();
 
@@ -259,17 +279,7 @@ void readSerial() {
 
       break;
   }
-}
 
-void writeDisplay(String msg, int column, int line, bool clearDisplay) {
-
-  if (clearDisplay) {
-    lcd.clear();
-    Serial.println();
-  }
-  Serial.print(msg + " ");
-  lcd.setCursor(column, line);
-  lcd.print(msg);
 }
 
 void turnLedON() {
@@ -286,11 +296,7 @@ void turnLedOff() {
   digitalWrite(LED03, LOW);
 }
 
-void msgDefault() {
-  writeDisplay("APS", 7, 0, true);
-  writeDisplay("MICROCONTROLADORES", 0, 1, false);
-}
-
+//Efeito para piscar todos os leds de uma vez em um intervalo de 50ms
 void effect00() {
   for (int i = 0; i < 10; i++) {
     turnLedON();
@@ -300,6 +306,7 @@ void effect00() {
   }
 }
 
+//acende ou apaga os leds aleatoriamente
 void effect03() {
   int LEDS[] = {A0, A1, A2, A3};
   for (int i = 0; i < 4; i++) {
@@ -308,4 +315,76 @@ void effect03() {
     delay(200);
   }
   turnLedOff();
+}
+
+/*
+   metodo recebe todos parametros necessarios para escrever no lcd
+
+   @param String msg Mensagem para ser exibida
+   @param int column coluna inicial para setar o cursor
+   @param int line linha onde sera exibida a msg
+   @param bool clearDisplay se verdadeiro o display é limpo antes de exibir a nova mensagem
+
+*/
+void writeDisplay(String msg, int column, int line, bool clearDisplay) {
+  if (clearDisplay) {
+    lcd.clear();
+    Serial.println();
+  }
+  Serial.print(msg + " ");
+  lcd.setCursor(column, line);
+  lcd.print(msg);
+}
+
+// Exibe mensagens de inicialização
+// utilizando scroll horizontal para efeito de exibição do texto
+void msgStart() {
+  int cont = 0;
+  lcd.clear();
+
+  do {
+    lcd.setCursor(scrollCursor, 1);
+    lcd.print(msg.substring(stringStart, stringStop));
+    writeDisplay("SEJA BEM VINDO", 1, 0, false);
+
+    //Quanto menor o valor do delay, mais rapido o scroll
+    delay(300);
+    scroll(); //Chama a rotina que executa o scroll
+
+    cont++;
+  } while (cont <= msg.length());
+  stringStart = 0;
+  stringStop = 0;
+
+  for (int i = 0; i < 2; i++) {
+    lcd.clear();
+    delay(500);
+    writeDisplay("SEJA BEM", 4, 0, true);
+    writeDisplay("VINDO", 5, 1, false);
+    delay(500);
+  }
+
+  delay(1000);
+  msgDefault();
+}
+
+void scroll() {
+  lcd.clear();
+  if (stringStart == 0 && scrollCursor > 0) {
+    scrollCursor--;
+    stringStop++;
+  } else if (stringStart == stringStop) {
+    stringStart = stringStop = 0;
+    scrollCursor = lcdWidth;
+  } else if (stringStop == msg.length() && scrollCursor == 0) {
+    stringStart++;
+  } else {
+    stringStart++;
+    stringStop++;
+  }
+}
+
+void msgDefault() {
+  writeDisplay(msg.substring(0, 4), 7, 0, true);
+  writeDisplay(msg.substring(4, msg.length() - 1), 0, 1, false);
 }
